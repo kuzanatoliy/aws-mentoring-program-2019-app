@@ -1,0 +1,22 @@
+{
+  "name": "aws-mentoring-program-2019-app",
+  "version": "1.0.0",
+  "description": "Aws mentoring program practical part",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kuzanatoliy/aws-mentoring-program-2019-app.git"
+  },
+  "keywords": [
+    "aws"
+  ],
+  "author": "Anatoli Kuzmiankou",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kuzanatoliy/aws-mentoring-program-2019-app/issues"
+  },
+  "homepage": "https://github.com/kuzanatoliy/aws-mentoring-program-2019-app#readme"
+}
