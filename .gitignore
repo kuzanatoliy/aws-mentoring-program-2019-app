@@ -1,0 +1,3 @@
+node_modules
+src/config/aws.config.json
+src/config/database.config.json

@@ -1,0 +1,10 @@
+{
+  "development": {
+    "username": // User name
+    "password": // User password
+    "database": // Name of database
+    "host": // Database host
+    "port": // Database port
+    "dialect": // Database dialect
+  }
+}
