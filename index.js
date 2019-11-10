@@ -1,15 +1,11 @@
 const http = require('http');
 const express = require('express');
-const AWS = require('aws-sdk');
 const multer = require('multer');
 const bodyParser = require('body-parser');
 
+const { s3Service, snsService } = require('./src/services');
+
 const { connection, modelList: { Image, Subscription } } = require('./src/models');
-
-AWS.config.loadFromPath('./src/config/aws.config.json');
-
-const s3 = new AWS.S3({ apiVersion: '2006-03-01' });
-const sns = new AWS.SNS({ apiVersion: '2010-03-31' });
 
 const app = express();
 
@@ -21,8 +17,8 @@ app.get('/random', async (req, res) => {
   try {
     const imageList = await Image.findAll();
     const { fileName } = imageList[Math.floor(Math.random() * imageList.length)].toJSON();
-    const { ContentType, Body } = await s3.getObject({ Bucket: 'aws.mentoring.program', Key: fileName }).promise();
-    res.type(ContentType).send(Body);
+    const { ContentType, Body } = await s3Service.getObject(fileName);
+    res.status(200).type(ContentType).send(Body);
   } catch (error) {
     res.status(500).send(error);
   }
@@ -38,8 +34,8 @@ app.get('/:imageName', async (req, res, next) => {
       return next();
     }
     const { fileName } = image.toJSON();
-    const { ContentType, Body } = await s3.getObject({ Bucket: 'aws.mentoring.program', Key: fileName }).promise();
-    res.type(ContentType).send(Body);
+    const { ContentType, Body } = await s3Service.getObject(fileName);
+    res.status(200).type(ContentType).send(Body);
   } catch (error) {
     res.status(500).send(error);
   }
@@ -47,20 +43,16 @@ app.get('/:imageName', async (req, res, next) => {
 
 app.post('/subscribe', async (req, res, next) => {
   try {
-    if(!req.body.email) {
+    const { email } = req.body;
+    if (!email) {
       return next();
     }
-    const { SubscriptionArn } = await sns.subscribe({
-      Protocol: 'email',
-      TopicArn: 'arn:aws:sns:us-east-2:964473949068:AWSMentoringProgramSNSTopic',
-      Endpoint: req.body.email,
-      ReturnSubscriptionArn: true,
-    }).promise();
+    const { SubscriptionArn } = await snsService.subscribe(email);
     await Subscription.findOrCreate({
-      where: { email: req.body.email, subscription: SubscriptionArn },
-      default: { email: req.body.email, subscription: SubscriptionArn },
+      where: { email, subscription: SubscriptionArn },
+      default: { email, subscription: SubscriptionArn },
     });
-    res.send('Subscribed');
+    res.status(200).send('Subscribed');
   } catch (error) {
     res.status(500).send(error);
   }
@@ -75,10 +67,11 @@ app.post('/unsubscribe', async (req, res, next) => {
     if(!subscription) {
       return next();
     }
-    await sns.unsubscribe({
-      SubscriptionArn: subscription,
-    }).promise();
-    res.send('Unsubscribed');
+    await Promise.all([
+      snsService.unsubscribe(subscription),
+      Subscription.delete({ where: { subscription } }),
+    ]);
+    res.status(200).send('Unsubscribed');
   } catch (error) {
     res.status(500).send(error);
   }
@@ -88,23 +81,14 @@ const multerMiddleware = multer({ storage: multer.memoryStorage() }).single('ima
 
 app.post('/', multerMiddleware, async (req, res) => {
   try {
-    const { originalname, buffer, mimetype } = req.file;
-    await s3.upload({
-      ACL: 'public-read',
-      Bucket: 'aws.mentoring.program',
-      Key: originalname,
-      Body: buffer,
-      ContentType: mimetype,
-    }).promise();
+    await s3Service.pushObject(req.file);
+    const { originalname } = req.file;
     await Image.findOrCreate({
       where: { fileName: originalname },
       default: { fileName: originalname },
     });
-    result = await sns.publish({
-      Subject: 'AwsMentoringProgram: new image',
-      Message: `${ req.protocol }://${req.hostname }/${originalname}`,
-      TargetArn: 'arn:aws:sns:us-east-2:964473949068:AWSMentoringProgramSNSTopic',
-    }).promise();
+    const message = `${ req.protocol }://${req.hostname }/${originalname}`;
+    await snsSerivce.pushMessage(message);
     res.status(200).send('File was saved');
   } catch (error) {
     res.status(500).send(error);
