@@ -1,0 +1,4 @@
+{
+  "hostname": "localhost", // Server hostname
+  "protocol": "http" // Server protocol
+}

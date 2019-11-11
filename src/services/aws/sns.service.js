@@ -19,7 +19,7 @@ async function unsubscribe(subscription) {
 }
 
 async function pushMessage(message) {
-  return result = await sns.publish({
+  return sns.publish({
     Subject: 'AwsMentoringProgram: new image',
     Message: message,
     TargetArn: config.snsTopicArn,

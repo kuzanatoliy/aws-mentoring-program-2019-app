@@ -4,6 +4,7 @@ const multer = require('multer');
 const bodyParser = require('body-parser');
 
 const { s3Service, snsService } = require('./src/services');
+const config = require('./src/config/app.config.json');
 
 const { connection, modelList: { Image, Subscription } } = require('./src/models');
 
@@ -13,33 +14,29 @@ const server = http.createServer(app);
 
 app.use(bodyParser.urlencoded({ extended: true }), bodyParser.json());
 
-app.get('/random', async (req, res) => {
-  try {
-    const imageList = await Image.findAll();
-    const { fileName } = imageList[Math.floor(Math.random() * imageList.length)].toJSON();
-    const { ContentType, Body } = await s3Service.getObject(fileName);
-    res.status(200).type(ContentType).send(Body);
-  } catch (error) {
-    res.status(500).send(error);
-  }
+app.get('/subscribe', async (req, res) => {
+  res.send(`
+    <form method="post" action="/subscribe">
+      <label>
+        Subscribe email
+        <input type="email" name="email"/>
+        <input type="submit"/>
+      </label>
+    </form>
+  `);
 });
 
-app.get('/:imageName', async (req, res, next) => {
-  try {
-    const image = await Image.findOne({
-      where: { fileName: req.params.imageName },
-      attributes: [ 'id', 'fileName' ],
-    });
-    if(!image) {
-      return next();
-    }
-    const { fileName } = image.toJSON();
-    const { ContentType, Body } = await s3Service.getObject(fileName);
-    res.status(200).type(ContentType).send(Body);
-  } catch (error) {
-    res.status(500).send(error);
-  }
-});
+app.get('/unsubscribe', async (req, res) => {
+  res.send(`
+    <form method="post" action="/unsubscribe">
+      <label>
+        Unsubscribe email
+        <input type="email" name="email"/>
+        <input type="submit"/>
+      </label>
+    </form>
+  `)
+})
 
 app.post('/subscribe', async (req, res, next) => {
   try {
@@ -69,9 +66,37 @@ app.post('/unsubscribe', async (req, res, next) => {
     }
     await Promise.all([
       snsService.unsubscribe(subscription),
-      Subscription.delete({ where: { subscription } }),
+      Subscription.destroy({ where: { subscription } }),
     ]);
     res.status(200).send('Unsubscribed');
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+app.get('/random', async (req, res) => {
+  try {
+    const imageList = await Image.findAll();
+    const { fileName } = imageList[Math.floor(Math.random() * imageList.length)].toJSON();
+    const { ContentType, Body } = await s3Service.getObject(fileName);
+    res.status(200).type(ContentType).send(Body);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+app.get('/:imageName', async (req, res, next) => {
+  try {
+    const image = await Image.findOne({
+      where: { fileName: req.params.imageName },
+      attributes: [ 'id', 'fileName' ],
+    });
+    if(!image) {
+      return next();
+    }
+    const { fileName } = image.toJSON();
+    const { ContentType, Body } = await s3Service.getObject(fileName);
+    res.status(200).type(ContentType).send(Body);
   } catch (error) {
     res.status(500).send(error);
   }
@@ -87,8 +112,8 @@ app.post('/', multerMiddleware, async (req, res) => {
       where: { fileName: originalname },
       default: { fileName: originalname },
     });
-    const message = `${ req.protocol }://${req.hostname }/${originalname}`;
-    await snsSerivce.pushMessage(message);
+    const message = `${ config.protocol }://${ config.hostname }/${originalname}`;
+    await snsService.pushMessage(message);
     res.status(200).send('File was saved');
   } catch (error) {
     res.status(500).send(error);
