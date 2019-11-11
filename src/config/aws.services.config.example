@@ -1,0 +1,8 @@
+{
+  "s3ApiVersion": "2006-03-01", // s3 api version
+  "s3Bucket": "aws.mentoring.program", // s3 bucket name
+  "s3Acl": "public-read", // s3 file access
+  "snsApiVersion": "2010-03-31", // sns api version
+  "snsTopicArn": "arn:aws:sns:us-east-2:964473949068:AWSMentoringProgramSNSTopic", // sns topic arn
+  "snsProtocol": "email" // sns protocol
+}
