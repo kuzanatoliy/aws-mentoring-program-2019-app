@@ -3,10 +3,15 @@ const express = require('express');
 const multer = require('multer');
 const bodyParser = require('body-parser');
 
-const { s3Service, snsService } = require('./src/services');
+const {
+  lambdaAwsService,
+  s3AwsService,
+  snsAwsService,
+  imageDBService,
+  subscriptionDBService,
+} = require('./src/services');
 const config = require('./src/config/app.config.json');
-
-const { connection, modelList: { Image, Subscription } } = require('./src/models');
+const { connection } = require('./src/models');
 
 const app = express();
 
@@ -44,11 +49,8 @@ app.post('/subscribe', async (req, res, next) => {
     if (!email) {
       return next();
     }
-    const { SubscriptionArn } = await snsService.subscribe(email);
-    await Subscription.findOrCreate({
-      where: { email, subscription: SubscriptionArn },
-      default: { email, subscription: SubscriptionArn },
-    });
+    const { SubscriptionArn } = await snsAwsService.subscribe(email);
+    await subscriptionDBService.findOrCreate(email, SubscriptionArn);
     res.status(200).send('Subscribed');
   } catch (error) {
     res.status(500).send(error);
@@ -57,16 +59,13 @@ app.post('/subscribe', async (req, res, next) => {
 
 app.post('/unsubscribe', async (req, res, next) => {
   try {
-    const { subscription } = await Subscription.findOne({
-      where: { email: req.body.email },
-      attributes: [ 'subscription' ],
-    })
-    if(!subscription) {
+    const { subscription } = await subscriptionDBService.getByEmail(req.body.email);
+    if (!subscription) {
       return next();
     }
     await Promise.all([
-      snsService.unsubscribe(subscription),
-      Subscription.destroy({ where: { subscription } }),
+      snsAwsService.unsubscribe(subscription),
+      subscriptionDBService.remove(subscription),
     ]);
     res.status(200).send('Unsubscribed');
   } catch (error) {
@@ -76,9 +75,9 @@ app.post('/unsubscribe', async (req, res, next) => {
 
 app.get('/random', async (req, res) => {
   try {
-    const imageList = await Image.findAll();
+    const imageList = await imageDBService.getList();
     const { fileName } = imageList[Math.floor(Math.random() * imageList.length)].toJSON();
-    const { ContentType, Body } = await s3Service.getObject(fileName);
+    const { ContentType, Body } = await s3AwsService.getObject(fileName);
     res.status(200).type(ContentType).send(Body);
   } catch (error) {
     res.status(500).send(error);
@@ -87,15 +86,12 @@ app.get('/random', async (req, res) => {
 
 app.get('/:imageName', async (req, res, next) => {
   try {
-    const image = await Image.findOne({
-      where: { fileName: req.params.imageName },
-      attributes: [ 'id', 'fileName' ],
-    });
+    const image = await imageDBService.getByName(req.params.imageName);
     if(!image) {
       return next();
     }
     const { fileName } = image.toJSON();
-    const { ContentType, Body } = await s3Service.getObject(fileName);
+    const { ContentType, Body } = await s3AwsService.getObject(fileName);
     res.status(200).type(ContentType).send(Body);
   } catch (error) {
     res.status(500).send(error);
@@ -106,14 +102,11 @@ const multerMiddleware = multer({ storage: multer.memoryStorage() }).single('ima
 
 app.post('/', multerMiddleware, async (req, res) => {
   try {
-    await s3Service.pushObject(req.file);
+    await s3AwsService.pushObject(req.file);
     const { originalname } = req.file;
-    await Image.findOrCreate({
-      where: { fileName: originalname },
-      default: { fileName: originalname },
-    });
+    await imageDBService.findOrCreate(originalname);
     const message = `${ config.protocol }://${ config.hostname }/${originalname}`;
-    await snsService.pushMessage(message);
+    await snsAwsService.pushMessage(message);
     res.status(200).send('File was saved');
   } catch (error) {
     res.status(500).send(error);
@@ -124,7 +117,7 @@ app.use((req, res) => {
   res.status(404).send(`Sorry, page ${ req.originalUrl } not founded`);
 });
 
-connection.sync().then(() => {
+Promise.all([connection.sync(), lambdaAwsService.checkBucket()]).then(() => {
   server.listen('9000', () => {
     console.log('Application running on http://localhost:9000');
   });

@@ -1,7 +1,9 @@
-const s3Service = require('./s3.service');
-const snsService = require('./sns.service');
+const lambdaAwsService = require('./lambda.service');
+const s3AwsService = require('./s3.service');
+const snsAwsService = require('./sns.service');
 
 module.exports = {
-  s3Service,
-  snsService,
+  lambdaAwsService,
+  s3AwsService,
+  snsAwsService,
 };

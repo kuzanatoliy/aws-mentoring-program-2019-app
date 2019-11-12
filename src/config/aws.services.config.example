@@ -4,5 +4,7 @@
   "s3Acl": "public-read", // s3 file access
   "snsApiVersion": "2010-03-31", // sns api version
   "snsTopicArn": "arn:aws:sns:us-east-2:964473949068:AWSMentoringProgramSNSTopic", // sns topic arn
-  "snsProtocol": "email" // sns protocol
+  "snsProtocol": "email", // sns protocol
+  "lambdaApiVersion": "2015-03-31", // lambda api version
+  "lambdaFunctionArn": "arn:aws:lambda:us-east-2:964473949068:function:AWSMentoringS3BucketChecking" // lambda function arn
 }
